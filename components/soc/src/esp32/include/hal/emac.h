@@ -380,6 +380,8 @@ void emac_hal_start(emac_hal_context_t *hal);
 
 void emac_hal_stop(emac_hal_context_t *hal);
 
+void emac_hal_enable_flow_ctrl(emac_hal_context_t *hal, bool enable);
+
 uint32_t emac_hal_get_tx_desc_owner(emac_hal_context_t *hal);
 
 uint32_t emac_hal_transmit_frame(emac_hal_context_t *hal, uint8_t *buf, uint32_t length);

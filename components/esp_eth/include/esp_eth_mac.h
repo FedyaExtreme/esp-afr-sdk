@@ -253,6 +253,31 @@ struct esp_eth_mac_s {
     esp_err_t (*set_promiscuous)(esp_eth_mac_t *mac, bool enable);
 
     /**
+    * @brief Enable flow control on MAC layer or not
+    *
+    * @param[in] mac: Ethernet MAC instance
+    * @param[in] enable: set true to enable flow control; set false to disable flow control
+    *
+    * @return
+    *      - ESP_OK: set flow control successfully
+    *      - ESP_FAIL: set flow control failed because some error occurred
+    *
+    */
+    esp_err_t (*enable_flow_ctrl)(esp_eth_mac_t *mac, bool enable);
+
+    /**
+    * @brief Set the PAUSE ability of peer node
+    *
+    * @param[in] mac: Ethernet MAC instance
+    * @param[in] ability: zero indicates that pause function is supported by link partner; non-zero indicates that pause function is not supported by link partner
+    *
+    * @return
+    *      - ESP_OK: set peer pause ability successfully
+    *      - ESP_FAIL: set peer pause ability failed because some error occurred
+    */
+    esp_err_t (*set_peer_pause_ability)(esp_eth_mac_t *mac, uint32_t ability);
+
+    /**
     * @brief Free memory of Ethernet MAC
     *
     * @param[in] mac: Ethernet MAC instance
@@ -265,6 +290,83 @@ struct esp_eth_mac_s {
     esp_err_t (*del)(esp_eth_mac_t *mac);
 };
 
+/**
+ * @brief RMII Clock Mode Options
+ *
+ */
+typedef enum {
+    /**
+     * @brief Default values configured using Kconfig are going to be used when "Default" selected.
+     *
+     */
+    EMAC_CLK_DEFAULT,
+
+    /**
+     * @brief Input RMII Clock from external. EMAC Clock GPIO number needs to be configured when this option is selected.
+     *
+     * @note MAC will get RMII clock from outside. Note that ESP32 only supports GPIO0 to input the RMII clock.
+     *
+     */
+    EMAC_CLK_EXT_IN,
+
+    /**
+     * @brief Output RMII Clock from internal APLL Clock. EMAC Clock GPIO number needs to be configured when this option is selected.
+     *
+     */
+    EMAC_CLK_OUT
+} emac_rmii_clock_mode_t;
+
+/**
+ * @brief RMII Clock GPIO number Options
+ *
+ */
+typedef enum {
+    /**
+     * @brief MAC will get RMII clock from outside at this GPIO.
+     *
+     * @note ESP32 only supports GPIO0 to input the RMII clock.
+     *
+     */
+    EMAC_CLK_IN_GPIO = 0,
+
+    /**
+     * @brief Output RMII Clock from internal APLL Clock available at GPIO0
+     *
+     * @note GPIO0 can be set to output a pre-divided PLL clock (test only!). Enabling this option will configure GPIO0 to output a 50MHz clock.
+     * In fact this clock doesn’t have directly relationship with EMAC peripheral. Sometimes this clock won’t work well with your PHY chip.
+     * You might need to add some extra devices after GPIO0 (e.g. inverter). Note that outputting RMII clock on GPIO0 is an experimental practice.
+     * If you want the Ethernet to work with WiFi, don’t select GPIO0 output mode for stability.
+     *
+     */
+    EMAC_APPL_CLK_OUT_GPIO = 0,
+
+    /**
+     * @brief Output RMII Clock from internal APLL Clock available at GPIO16
+     *
+     */
+    EMAC_CLK_OUT_GPIO = 16,
+
+    /**
+     * @brief Inverted Output RMII Clock from internal APLL Clock available at GPIO17
+     *
+     */
+    EMAC_CLK_OUT_180_GPIO = 17
+} emac_rmii_clock_gpio_t;
+
+/**
+ * @brief Ethernet MAC Clock Configuration
+ *
+ */
+typedef union {
+    struct {
+        // MII interface is not fully implemented...
+        // Reserved for GPIO number, clock source, etc. in MII mode
+    } mii; /*!< EMAC MII Clock Configuration */
+    struct {
+        emac_rmii_clock_mode_t clock_mode; /*!< RMII Clock Mode Configuration */
+        emac_rmii_clock_gpio_t clock_gpio; /*!< RMII Clock GPIO Configuration */
+    } rmii; /*!< EMAC RMII Clock Configuration */
+} eth_mac_clock_config_t;
 /**
 * @brief Configuration of Ethernet MAC object
 *

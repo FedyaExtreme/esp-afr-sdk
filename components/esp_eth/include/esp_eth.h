@@ -1,16 +1,8 @@
-// Copyright 2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2019-2021 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #pragma once
 
 #include "esp_eth_com.h"
@@ -86,7 +78,68 @@ typedef struct {
     */
     esp_err_t (*on_lowlevel_deinit_done)(esp_eth_handle_t eth_handle);
 
+    /**
+    * @brief Read PHY register
+    *
+    * @note Usually the PHY register read/write function is provided by MAC (SMI interface),
+    *       but if the PHY device is managed by other interface (e.g. I2C), then user needs to
+    *       implement the corresponding read/write.
+    *       Setting this to NULL means your PHY device is managed by MAC's SMI interface.
+    *
+    * @param[in] eth_handle: handle of Ethernet driver
+    * @param[in] phy_addr: PHY chip address (0~31)
+    * @param[in] phy_reg: PHY register index code
+    * @param[out] reg_value: PHY register value
+    *
+    * @return
+    *      - ESP_OK: read PHY register successfully
+    *      - ESP_ERR_INVALID_ARG: read PHY register failed because of invalid argument
+    *      - ESP_ERR_TIMEOUT: read PHY register failed because of timeout
+    *      - ESP_FAIL: read PHY register failed because some other error occurred
+    */
+    esp_err_t (*read_phy_reg)(esp_eth_handle_t eth_handle, uint32_t phy_addr, uint32_t phy_reg, uint32_t *reg_value);
+
+    /**
+    * @brief Write PHY register
+    *
+    * @note Usually the PHY register read/write function is provided by MAC (SMI interface),
+    *       but if the PHY device is managed by other interface (e.g. I2C), then user needs to
+    *       implement the corresponding read/write.
+    *       Setting this to NULL means your PHY device is managed by MAC's SMI interface.
+    *
+    * @param[in] eth_handle: handle of Ethernet driver
+    * @param[in] phy_addr: PHY chip address (0~31)
+    * @param[in] phy_reg: PHY register index code
+    * @param[in] reg_value: PHY register value
+    *
+    * @return
+    *      - ESP_OK: write PHY register successfully
+    *      - ESP_ERR_INVALID_ARG: read PHY register failed because of invalid argument
+    *      - ESP_ERR_TIMEOUT: write PHY register failed because of timeout
+    *      - ESP_FAIL: write PHY register failed because some other error occurred
+    */
+    esp_err_t (*write_phy_reg)(esp_eth_handle_t eth_handle, uint32_t phy_addr, uint32_t phy_reg, uint32_t reg_value);
 } esp_eth_config_t;
+
+/**
+* @brief Command list for ioctl API
+*
+*/
+typedef enum {
+    ETH_CMD_G_MAC_ADDR,    /*!< Get MAC address */
+    ETH_CMD_S_MAC_ADDR,    /*!< Set MAC address */
+    ETH_CMD_G_PHY_ADDR,    /*!< Get PHY address */
+    ETH_CMD_S_PHY_ADDR,    /*!< Set PHY address */
+    ETH_CMD_G_AUTONEGO,    /*!< Get PHY Auto Negotiation */
+    ETH_CMD_S_AUTONEGO,    /*!< Set PHY Auto Negotiation */
+    ETH_CMD_G_SPEED,       /*!< Get Speed */
+    ETH_CMD_S_SPEED,       /*!< Set Speed */
+    ETH_CMD_S_PROMISCUOUS, /*!< Set promiscuous mode */
+    ETH_CMD_S_FLOW_CTRL,   /*!< Set flow control */
+    ETH_CMD_G_DUPLEX_MODE, /*!< Get Duplex mode */
+    ETH_CMD_S_DUPLEX_MODE, /*!< Set Duplex mode */
+    ETH_CMD_S_PHY_LOOPBACK,/*!< Set PHY loopback */
+} esp_eth_io_cmd_t;
 
 /**
  * @brief Default configuration for Ethernet driver
@@ -100,6 +153,8 @@ typedef struct {
         .stack_input = NULL,             \
         .on_lowlevel_init_done = NULL,   \
         .on_lowlevel_deinit_done = NULL, \
+        .read_phy_reg = NULL,            \
+        .write_phy_reg = NULL,           \
     }
 
 /**
@@ -192,10 +247,11 @@ esp_err_t esp_eth_update_input_path(
 *       - ESP_ERR_INVALID_ARG: transmit frame buffer failed because of some invalid argument
 *       - ESP_FAIL: transmit frame buffer failed because some other error occurred
 */
-esp_err_t esp_eth_transmit(esp_eth_handle_t hdl, void *buf, uint32_t length);
+esp_err_t esp_eth_transmit(esp_eth_handle_t hdl, void *buf, size_t length);
 
 /**
-* @brief General Receive
+* @brief General Receive is deprecated and shall not be accessed from app code,
+*        as polling is not supported by Ethernet.
 *
 * @param[in] hdl: handle of Ethernet driver
 * @param[out] buf: buffer to preserve the received packet
@@ -203,6 +259,9 @@ esp_err_t esp_eth_transmit(esp_eth_handle_t hdl, void *buf, uint32_t length);
 *
 * @note Before this function got invoked, the value of "length" should set by user, equals the size of buffer.
 *       After the function returned, the value of "length" means the real length of received data.
+* @note This API was exposed by accident, users should not use this API in their applications.
+*       Ethernet driver is interrupt driven, and doesn't support polling mode.
+*       Instead, users should register input callback with ``esp_eth_update_input_path``.
 *
 * @return
 *       - ESP_OK: receive frame buffer successfully
@@ -211,19 +270,39 @@ esp_err_t esp_eth_transmit(esp_eth_handle_t hdl, void *buf, uint32_t length);
 *                               in this case, value of returned "length" indicates the real size of incoming data.
 *       - ESP_FAIL: receive frame buffer failed because some other error occurred
 */
-esp_err_t esp_eth_receive(esp_eth_handle_t hdl, uint8_t *buf, uint32_t *length);
+esp_err_t esp_eth_receive(esp_eth_handle_t hdl, uint8_t *buf, uint32_t *length) __attribute__((deprecated("Ethernet driver is interrupt driven only, please register input callback with esp_eth_update_input_path")));
 
 /**
 * @brief Misc IO function of Etherent driver
 *
 * @param[in] hdl: handle of Ethernet driver
 * @param[in] cmd: IO control command
-* @param[in] data: specificed data for command
+* @param[in, out] data: address of data for `set` command or address where to store the data when used with `get` command
 *
 * @return
 *       - ESP_OK: process io command successfully
 *       - ESP_ERR_INVALID_ARG: process io command failed because of some invalid argument
 *       - ESP_FAIL: process io command failed because some other error occurred
+*       - ESP_ERR_NOT_SUPPORTED: requested feature is not supported
+*
+* The following IO control commands are supported:
+* @li @c ETH_CMD_S_MAC_ADDR sets Ethernet interface MAC address. @c data argument is pointer to MAC address buffer with expected size of 6 bytes.
+* @li @c ETH_CMD_G_MAC_ADDR gets Ethernet interface MAC address. @c data argument is pointer to a buffer to which MAC address is to be copied. The buffer size must be at least 6 bytes.
+* @li @c ETH_CMD_S_PHY_ADDR sets PHY address in range of <0-31>. @c data argument is pointer to memory of uint32_t datatype from where the configuration option is read.
+* @li @c ETH_CMD_G_PHY_ADDR gets PHY address. @c data argument is pointer to memory of uint32_t datatype to which the PHY address is to be stored.
+* @li @c ETH_CMD_S_AUTONEGO enables or disables Ethernet link speed and duplex mode autonegotiation. @c data argument is pointer to memory of bool datatype from which the configuration option is read.
+*                           Preconditions: Ethernet driver needs to be stopped.
+* @li @c ETH_CMD_G_AUTONEGO gets current configuration of the Ethernet link speed and duplex mode autonegotiation. @c data argument is pointer to memory of bool datatype to which the current configuration is to be stored.
+* @li @c ETH_CMD_S_SPEED sets the Ethernet link speed. @c data argument is pointer to memory of eth_speed_t datatype from which the configuration option is read.
+*                           Preconditions: Ethernet driver needs to be stopped and auto-negotiation disabled.
+* @li @c ETH_CMD_G_SPEED gets current Ethernet link speed. @c data argument is pointer to memory of eth_speed_t datatype to which the speed is to be stored.
+* @li @c ETH_CMD_S_PROMISCUOUS sets/resets Ethernet interface promiscuous mode. @c data argument is pointer to memory of bool datatype from which the configuration option is read.
+* @li @c ETH_CMD_S_FLOW_CTRL sets/resets Ethernet interface flow control. @c data argument is pointer to memory of bool datatype from which the configuration option is read.
+* @li @c ETH_CMD_S_DUPLEX_MODE sets the Ethernet duplex mode. @c data argument is pointer to memory of eth_duplex_t datatype from which the configuration option is read.
+*                            Preconditions: Ethernet driver needs to be stopped and auto-negotiation disabled.
+* @li @c ETH_CMD_G_DUPLEX_MODE gets current Ethernet link duplex mode.  @c data argument is pointer to memory of eth_duplex_t datatype to which the duplex mode is to be stored.
+* @li @c ETH_CMD_S_PHY_LOOPBACK sets/resets PHY to/from loopback mode. @c data argument is pointer to memory of bool datatype from which the configuration option is read.
+*
 */
 esp_err_t esp_eth_ioctl(esp_eth_handle_t hdl, esp_eth_io_cmd_t cmd, void *data);
 

@@ -53,12 +53,19 @@ typedef struct {
     TaskHandle_t rx_task_hdl;
     uint32_t sw_reset_timeout_ms;
     uint32_t frames_remain;
+    uint32_t free_rx_descriptor;
+    uint32_t flow_control_high_water_mark;
+    uint32_t flow_control_low_water_mark;
     int smi_mdc_gpio_num;
     int smi_mdio_gpio_num;
+    eth_mac_clock_config_t clock_config;
     uint8_t addr[6];
     uint8_t *rx_buf[CONFIG_ETH_DMA_RX_BUFFER_NUM];
     uint8_t *tx_buf[CONFIG_ETH_DMA_TX_BUFFER_NUM];
     bool isr_need_yield;
+    bool flow_ctrl_enabled; // indicates whether the user want to do flow control
+    bool do_flow_ctrl;  // indicates whether we need to do software flow control
+    bool use_apll;  // Only use APLL in EMAC_DATA_INTERFACE_RMII && EMAC_CLK_OUT
 #ifdef CONFIG_PM_ENABLE
     esp_pm_lock_handle_t pm_lock;
 #endif
@@ -212,6 +219,29 @@ static esp_err_t emac_esp32_set_promiscuous(esp_eth_mac_t *mac, bool enable)
 {
     emac_esp32_t *emac = __containerof(mac, emac_esp32_t, parent);
     emac_hal_set_promiscuous(&emac->hal, enable);
+    return ESP_OK;
+}
+
+static esp_err_t emac_esp32_enable_flow_ctrl(esp_eth_mac_t *mac, bool enable)
+{
+    emac_esp32_t *emac = __containerof(mac, emac_esp32_t, parent);
+    emac->flow_ctrl_enabled = enable;
+    return ESP_OK;
+}
+
+static esp_err_t emac_esp32_set_peer_pause_ability(esp_eth_mac_t *mac, uint32_t ability)
+{
+    emac_esp32_t *emac = __containerof(mac, emac_esp32_t, parent);
+    // we want to enable flow control, and peer does support pause function
+    // then configure the MAC layer to enable flow control feature
+    if (emac->flow_ctrl_enabled && ability) {
+        emac_hal_enable_flow_ctrl(&emac->hal, true);
+        emac->do_flow_ctrl = true;
+    } else {
+        emac_hal_enable_flow_ctrl(&emac->hal, false);
+        emac->do_flow_ctrl = false;
+        ESP_LOGD(TAG, "Flow control not enabled for the link");
+    }
     return ESP_OK;
 }
 
@@ -440,6 +470,8 @@ esp_eth_mac_t *esp_eth_mac_new_esp32(const eth_mac_config_t *config)
     emac->parent.set_duplex = emac_esp32_set_duplex;
     emac->parent.set_link = emac_esp32_set_link;
     emac->parent.set_promiscuous = emac_esp32_set_promiscuous;
+    emac->parent.set_peer_pause_ability = emac_esp32_set_peer_pause_ability;
+    emac->parent.enable_flow_ctrl = emac_esp32_enable_flow_ctrl;
     emac->parent.transmit = emac_esp32_transmit;
     emac->parent.receive = emac_esp32_receive;
     /* Interrupt configuration */

@@ -78,20 +78,9 @@ typedef enum {
     ETH_STATE_LINK,   /*!< Link status changed */
     ETH_STATE_SPEED,  /*!< Speed updated */
     ETH_STATE_DUPLEX, /*!< Duplex updated */
+    ETH_STATE_PAUSE
 } esp_eth_state_t;
 
-/**
-* @brief Command list for ioctl API
-*
-*/
-typedef enum {
-    ETH_CMD_G_MAC_ADDR,    /*!< Get MAC address */
-    ETH_CMD_S_MAC_ADDR,    /*!< Set MAC address */
-    ETH_CMD_G_PHY_ADDR,    /*!< Get PHY address */
-    ETH_CMD_S_PHY_ADDR,    /*!< Set PHY address */
-    ETH_CMD_G_SPEED,       /*!< Get Speed */
-    ETH_CMD_S_PROMISCUOUS, /*!< Set promiscuous mode */
-} esp_eth_io_cmd_t;
 
 /**
 * @brief Ethernet link status

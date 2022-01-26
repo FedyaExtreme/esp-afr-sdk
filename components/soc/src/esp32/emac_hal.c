@@ -17,6 +17,7 @@
 #include "soc/gpio_periph.h"
 #include "soc/rtc.h"
 #include "hal/emac.h"
+#include "hal/emac_ll.h"
 
 #define ETH_CRC_LENGTH (4)
 
@@ -431,6 +432,28 @@ void emac_hal_stop(emac_hal_context_t *hal)
 
     /* Disable Ethernet MAC and DMA Interrupt */
     hal->dma_regs->dmain_en.val = 0x0;
+}
+
+
+void emac_hal_enable_flow_ctrl(emac_hal_context_t *hal, bool enable)
+{
+    /* MACFCR Configuration */
+    if (enable) {
+        /* Pause time */
+        emac_ll_set_pause_time(hal->mac_regs, EMAC_LL_PAUSE_TIME);
+        /* Enable generation of Zero-Quanta Pause Control frames */
+        emac_ll_zero_quanta_pause_enable(hal->mac_regs, true);
+        /* Threshold of the PAUSE to be checked for automatic retransmission of PAUSE Frame */
+        emac_ll_set_pause_low_threshold(hal->mac_regs, EMAC_LL_PAUSE_LOW_THRESHOLD_MINUS_28);
+        /* Don't allow MAC detect Pause frames with MAC address0 unicast address and unique multicast address */
+        emac_ll_unicast_pause_frame_detect_enable(hal->mac_regs, false);
+        /* Enable MAC to decode the received Pause frame and disable its transmitter for a specific time */
+        emac_ll_receive_flow_ctrl_enable(hal->mac_regs, true);
+        /* Enable MAC to transmit Pause frames in full duplex mode or the MAC back-pressure operation in half duplex mode */
+        emac_ll_transmit_flow_ctrl_enable(hal->mac_regs, true);
+    } else {
+        emac_ll_clear(hal->mac_regs);
+    }
 }
 
 uint32_t emac_hal_get_tx_desc_owner(emac_hal_context_t *hal)
