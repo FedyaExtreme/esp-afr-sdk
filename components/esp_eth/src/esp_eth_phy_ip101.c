@@ -1,36 +1,22 @@
-// Copyright 2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2019-2021 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #include <string.h>
 #include <stdlib.h>
 #include <sys/cdefs.h>
 #include "esp_log.h"
+#include "esp_check.h"
 #include "esp_eth.h"
 #include "eth_phy_regs_struct.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "esp_rom_gpio.h"
+#include "esp_rom_sys.h"
 
 static const char *TAG = "ip101";
-#define PHY_CHECK(a, str, goto_tag, ...)                                          \
-    do                                                                            \
-    {                                                                             \
-        if (!(a))                                                                 \
-        {                                                                         \
-            ESP_LOGE(TAG, "%s(%d): " str, __FUNCTION__, __LINE__, ##__VA_ARGS__); \
-            goto goto_tag;                                                        \
-        }                                                                         \
-    } while (0)
 
 /***************Vendor Specific Register***************/
 
@@ -103,7 +89,7 @@ typedef union {
 typedef struct {
     esp_eth_phy_t parent;
     esp_eth_mediator_t *eth;
-    uint32_t addr;
+    int addr;
     uint32_t reset_timeout_ms;
     uint32_t autonego_timeout_ms;
     eth_link_t link_status;
@@ -112,25 +98,29 @@ typedef struct {
 
 static esp_err_t ip101_page_select(phy_ip101_t *ip101, uint32_t page)
 {
+    esp_err_t ret = ESP_OK;
     esp_eth_mediator_t *eth = ip101->eth;
     pcr_reg_t pcr = {
         .register_page_select = page
     };
-    PHY_CHECK(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_PCR_REG_ADDR, pcr.val) == ESP_OK, "write PCR failed", err);
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_PCR_REG_ADDR, pcr.val), err, TAG, "write PCR failed");
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_update_link_duplex_speed(phy_ip101_t *ip101)
 {
+    esp_err_t ret = ESP_OK;
     esp_eth_mediator_t *eth = ip101->eth;
     eth_speed_t speed = ETH_SPEED_10M;
     eth_duplex_t duplex = ETH_DUPLEX_HALF;
+    uint32_t peer_pause_ability = false;
     cssr_reg_t cssr;
-    PHY_CHECK(ip101_page_select(ip101, 16) == ESP_OK, "select page 16 failed", err);
-    PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_CSSR_REG_ADDR, &(cssr.val)) == ESP_OK,
-              "read CSSR failed", err);
+    anlpar_reg_t anlpar;
+    ESP_GOTO_ON_ERROR(ip101_page_select(ip101, 16), err, TAG, "select page 16 failed");
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_CSSR_REG_ADDR, &(cssr.val)), err, TAG, "read CSSR failed");
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_ANLPAR_REG_ADDR, &(anlpar.val)), err, TAG, "read ANLPAR failed");
     eth_link_t link = cssr.link_up ? ETH_LINK_UP : ETH_LINK_DOWN;
     /* check if link status changed */
     if (ip101->link_status != link) {
@@ -156,119 +146,157 @@ static esp_err_t ip101_update_link_duplex_speed(phy_ip101_t *ip101)
             default:
                 break;
             }
-            PHY_CHECK(eth->on_state_changed(eth, ETH_STATE_SPEED, (void *)speed) == ESP_OK,
-                      "change speed failed", err);
-            PHY_CHECK(eth->on_state_changed(eth, ETH_STATE_DUPLEX, (void *)duplex) == ESP_OK,
-                      "change duplex failed", err);
+            ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_SPEED, (void *)speed), err, TAG, "change speed failed");
+            ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_DUPLEX, (void *)duplex), err, TAG, "change duplex failed");
+            /* if we're in duplex mode, and peer has the flow control ability */
+            if (duplex == ETH_DUPLEX_FULL && anlpar.symmetric_pause) {
+                peer_pause_ability = 1;
+            } else {
+                peer_pause_ability = 0;
+            }
+            ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_PAUSE, (void *)peer_pause_ability), err, TAG, "change pause ability failed");
         }
-        PHY_CHECK(eth->on_state_changed(eth, ETH_STATE_LINK, (void *)link) == ESP_OK,
-                  "chagne link failed", err);
+        ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_LINK, (void *)link), err, TAG, "change link failed");
         ip101->link_status = link;
     }
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_set_mediator(esp_eth_phy_t *phy, esp_eth_mediator_t *eth)
 {
-    PHY_CHECK(eth, "can't set mediator to null", err);
+    esp_err_t ret = ESP_OK;
+    ESP_GOTO_ON_FALSE(eth, ESP_ERR_INVALID_ARG, err, TAG, "can't set mediator to null");
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     ip101->eth = eth;
     return ESP_OK;
 err:
-    return ESP_ERR_INVALID_ARG;
+    return ret;
 }
 
 static esp_err_t ip101_get_link(esp_eth_phy_t *phy)
 {
+    esp_err_t ret = ESP_OK;
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
-    /* Updata information about link, speed, duplex */
-    PHY_CHECK(ip101_update_link_duplex_speed(ip101) == ESP_OK, "update link duplex speed failed", err);
+    /* Update information about link, speed, duplex */
+    ESP_GOTO_ON_ERROR(ip101_update_link_duplex_speed(ip101), err, TAG, "update link duplex speed failed");
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_reset(esp_eth_phy_t *phy)
 {
+    esp_err_t ret = ESP_OK;
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     ip101->link_status = ETH_LINK_DOWN;
     esp_eth_mediator_t *eth = ip101->eth;
     bmcr_reg_t bmcr = {.reset = 1};
-    PHY_CHECK(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val) == ESP_OK,
-              "write BMCR failed", err);
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
     /* wait for reset complete */
     uint32_t to = 0;
     for (to = 0; to < ip101->reset_timeout_ms / 10; to++) {
         vTaskDelay(pdMS_TO_TICKS(10));
-        PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)) == ESP_OK,
-                  "read BMCR failed", err);
+        ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
         if (!bmcr.reset) {
             break;
         }
     }
-    PHY_CHECK(to < ip101->reset_timeout_ms / 10, "reset timeout", err);
+    ESP_GOTO_ON_FALSE(to < ip101->reset_timeout_ms / 10, ESP_FAIL, err, TAG, "reset timeout");
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_reset_hw(esp_eth_phy_t *phy)
 {
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     if (ip101->reset_gpio_num >= 0) {
-        gpio_pad_select_gpio(ip101->reset_gpio_num);
+        esp_rom_gpio_pad_select_gpio(ip101->reset_gpio_num);
         gpio_set_direction(ip101->reset_gpio_num, GPIO_MODE_OUTPUT);
         gpio_set_level(ip101->reset_gpio_num, 0);
-        ets_delay_us(100); // insert min input assert time
+        esp_rom_delay_us(100); // insert min input assert time
         gpio_set_level(ip101->reset_gpio_num, 1);
     }
     return ESP_OK;
 }
 
-static esp_err_t ip101_negotiate(esp_eth_phy_t *phy)
+/**
+ * @note This function is responsible for restarting a new auto-negotiation,
+ *       the result of negotiation won't be relected to uppler layers.
+ *       Instead, the negotiation result is fetched by linker timer, see `ip101_get_link()`
+ */
+static esp_err_t ip101_autonego_ctrl(esp_eth_phy_t *phy, eth_phy_autoneg_cmd_t cmd, bool *autonego_en_stat)
 {
+    esp_err_t ret = ESP_OK;
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     esp_eth_mediator_t *eth = ip101->eth;
-    /* Restart auto negotiation */
-    bmcr_reg_t bmcr = {
-        .speed_select = 1,     /* 100Mbps */
-        .duplex_mode = 1,      /* Full Duplex */
-        .en_auto_nego = 1,     /* Auto Negotiation */
-        .restart_auto_nego = 1 /* Restart Auto Negotiation */
-    };
-    PHY_CHECK(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val) == ESP_OK,
-              "write BMCR failed", err);
-    /* Wait for auto negotiation complete */
-    bmsr_reg_t bmsr;
-    uint32_t to = 0;
-    for (to = 0; to < ip101->autonego_timeout_ms / 10; to++) {
-        vTaskDelay(pdMS_TO_TICKS(10));
-        PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMSR_REG_ADDR, &(bmsr.val)) == ESP_OK,
-                  "read BMSR failed", err);
-        if (bmsr.auto_nego_complete) {
-            break;
+
+    bmcr_reg_t bmcr;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+
+    switch (cmd) {
+    case ESP_ETH_PHY_AUTONEGO_RESTART:
+        ESP_GOTO_ON_FALSE(bmcr.en_auto_nego, ESP_ERR_INVALID_STATE, err, TAG, "auto negotiation is disabled");
+        /* in case any link status has changed, let's assume we're in link down status */
+        ip101->link_status = ETH_LINK_DOWN;
+
+        bmcr.restart_auto_nego = 1; /* Restart Auto Negotiation */
+
+        ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
+        /* Wait for auto negotiation complete */
+        bmsr_reg_t bmsr;
+        uint32_t to = 0;
+        for (to = 0; to < ip101->autonego_timeout_ms / 100; to++) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMSR_REG_ADDR, &(bmsr.val)), err, TAG, "read BMSR failed");
+            if (bmsr.auto_nego_complete) {
+                break;
+            }
         }
+        if ((to >= ip101->autonego_timeout_ms / 100) && (ip101->link_status == ETH_LINK_UP)) {
+            ESP_LOGW(TAG, "auto negotiation timeout");
+        }
+        break;
+    case ESP_ETH_PHY_AUTONEGO_DIS:
+        if (bmcr.en_auto_nego == 1) {
+            bmcr.en_auto_nego = 0;     /* Disable Auto Negotiation */
+            ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
+            /* read configuration back */
+            ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+            ESP_GOTO_ON_FALSE(bmcr.en_auto_nego == 0, ESP_FAIL, err, TAG, "disable auto-negotiation failed");
+        }
+        break;
+    case ESP_ETH_PHY_AUTONEGO_EN:
+        if (bmcr.en_auto_nego == 0) {
+            bmcr.en_auto_nego = 1;     /* Enable Auto Negotiation */
+            ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
+            /* read configuration back */
+            ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+            ESP_GOTO_ON_FALSE(bmcr.en_auto_nego == 1, ESP_FAIL, err, TAG, "enable auto-negotiation failed");
+        }
+        break;
+    case ESP_ETH_PHY_AUTONEGO_G_STAT:
+        /* do nothing autonego_en_stat is set at the function end */
+        break;
+    default:
+        return ESP_ERR_INVALID_ARG;
     }
-    /* Auto negotiation failed, maybe no network cable plugged in, so output a warning */
-    if (to >= ip101->autonego_timeout_ms / 10) {
-        ESP_LOGW(TAG, "auto negotiation timeout");
-    }
-    /* Updata information about link, speed, duplex */
-    PHY_CHECK(ip101_update_link_duplex_speed(ip101) == ESP_OK, "update link duplex speed failed", err);
+
+    *autonego_en_stat = bmcr.en_auto_nego;
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_pwrctl(esp_eth_phy_t *phy, bool enable)
 {
+    esp_err_t ret = ESP_OK;
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     esp_eth_mediator_t *eth = ip101->eth;
     bmcr_reg_t bmcr;
-    PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)) == ESP_OK,
-              "read BMCR failed", err);
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
     if (!enable) {
         /* Enable IEEE Power Down Mode */
         bmcr.power_down = 1;
@@ -276,28 +304,25 @@ static esp_err_t ip101_pwrctl(esp_eth_phy_t *phy, bool enable)
         /* Disable IEEE Power Down Mode */
         bmcr.power_down = 0;
     }
-    PHY_CHECK(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val) == ESP_OK,
-              "write BMCR failed", err);
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
     if (!enable) {
-        PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)) == ESP_OK,
-                  "read BMCR failed", err);
-        PHY_CHECK(bmcr.power_down == 1, "power down failed", err);
+        ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+        ESP_GOTO_ON_FALSE(bmcr.power_down == 1, ESP_FAIL, err, TAG, "power down failed");
     } else {
         /* wait for power up complete */
         uint32_t to = 0;
         for (to = 0; to < ip101->reset_timeout_ms / 10; to++) {
             vTaskDelay(pdMS_TO_TICKS(10));
-            PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)) == ESP_OK,
-                      "read BMCR failed", err);
+            ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
             if (bmcr.power_down == 0) {
                 break;
             }
         }
-        PHY_CHECK(to < ip101->reset_timeout_ms / 10, "power up timeout", err);
+        ESP_GOTO_ON_FALSE(to < ip101->reset_timeout_ms / 10, ESP_FAIL, err, TAG, "power up timeout");
     }
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_set_addr(esp_eth_phy_t *phy, uint32_t addr)
@@ -309,12 +334,13 @@ static esp_err_t ip101_set_addr(esp_eth_phy_t *phy, uint32_t addr)
 
 static esp_err_t ip101_get_addr(esp_eth_phy_t *phy, uint32_t *addr)
 {
-    PHY_CHECK(addr, "addr can't be null", err);
+    esp_err_t ret = ESP_OK;
+    ESP_GOTO_ON_FALSE(addr, ESP_ERR_INVALID_ARG, err, TAG, "addr can't be null");
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     *addr = ip101->addr;
     return ESP_OK;
 err:
-    return ESP_ERR_INVALID_ARG;
+    return ret;
 }
 
 static esp_err_t ip101_del(esp_eth_phy_t *phy)
@@ -324,43 +350,132 @@ static esp_err_t ip101_del(esp_eth_phy_t *phy)
     return ESP_OK;
 }
 
+static esp_err_t ip101_advertise_pause_ability(esp_eth_phy_t *phy, uint32_t ability)
+{
+    esp_err_t ret = ESP_OK;
+    phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
+    esp_eth_mediator_t *eth = ip101->eth;
+    /* Set PAUSE function ability */
+    anar_reg_t anar;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_ANAR_REG_ADDR, &(anar.val)), err, TAG, "read ANAR failed");
+    if (ability) {
+        anar.asymmetric_pause = 1;
+        anar.symmetric_pause = 1;
+    } else {
+        anar.asymmetric_pause = 0;
+        anar.symmetric_pause = 0;
+    }
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_ANAR_REG_ADDR, anar.val), err, TAG, "write ANAR failed");
+    return ESP_OK;
+err:
+    return ret;
+}
+
+static esp_err_t ip101_loopback(esp_eth_phy_t *phy, bool enable)
+{
+    esp_err_t ret = ESP_OK;
+    phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
+    esp_eth_mediator_t *eth = ip101->eth;
+    /* Set Loopback function */
+    bmcr_reg_t bmcr;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+    if (enable) {
+        bmcr.en_loopback = 1;
+    } else {
+        bmcr.en_loopback = 0;
+    }
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
+    return ESP_OK;
+err:
+    return ret;
+}
+
+static esp_err_t ip101_set_speed(esp_eth_phy_t *phy, eth_speed_t speed)
+{
+    esp_err_t ret = ESP_OK;
+    phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
+    esp_eth_mediator_t *eth = ip101->eth;
+
+    if (ip101->link_status == ETH_LINK_UP) {
+        /* Since the link is going to be reconfigured, consider it down for a while */
+        ip101->link_status = ETH_LINK_DOWN;
+        /* Indicate to upper stream apps the link is cosidered down */
+        ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_LINK, (void *)ip101->link_status), err, TAG, "change link failed");
+    }
+    /* Set speed */
+    bmcr_reg_t bmcr;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+    bmcr.speed_select = speed;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
+
+    return ESP_OK;
+err:
+    return ret;
+}
+
+static esp_err_t ip101_set_duplex(esp_eth_phy_t *phy, eth_duplex_t duplex)
+{
+    esp_err_t ret = ESP_OK;
+    phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
+    esp_eth_mediator_t *eth = ip101->eth;
+
+    if (ip101->link_status == ETH_LINK_UP) {
+        /* Since the link is going to be reconfigured, consider it down for a while */
+        ip101->link_status = ETH_LINK_DOWN;
+        /* Indicate to upper stream apps the link is cosidered down */
+        ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_LINK, (void *)ip101->link_status), err, TAG, "change link failed");
+    }
+    /* Set duplex mode */
+    bmcr_reg_t bmcr;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
+    bmcr.duplex_mode = duplex;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, ip101->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
+
+    return ESP_OK;
+err:
+    return ret;
+}
+
 static esp_err_t ip101_init(esp_eth_phy_t *phy)
 {
+    esp_err_t ret = ESP_OK;
     phy_ip101_t *ip101 = __containerof(phy, phy_ip101_t, parent);
     esp_eth_mediator_t *eth = ip101->eth;
     // Detect PHY address
     if (ip101->addr == ESP_ETH_PHY_ADDR_AUTO) {
-        PHY_CHECK(esp_eth_detect_phy_addr(eth, &ip101->addr) == ESP_OK, "Detect PHY address failed", err);
+        ESP_GOTO_ON_ERROR(esp_eth_detect_phy_addr(eth, &ip101->addr), err, TAG, "Detect PHY address failed");
     }
     /* Power on Ethernet PHY */
-    PHY_CHECK(ip101_pwrctl(phy, true) == ESP_OK, "power control failed", err);
+    ESP_GOTO_ON_ERROR(ip101_pwrctl(phy, true), err, TAG, "power control failed");
     /* Reset Ethernet PHY */
-    PHY_CHECK(ip101_reset(phy) == ESP_OK, "reset failed", err);
+    ESP_GOTO_ON_ERROR(ip101_reset(phy), err, TAG, "reset failed");
     /* Check PHY ID */
     phyidr1_reg_t id1;
     phyidr2_reg_t id2;
-    PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_IDR1_REG_ADDR, &(id1.val)) == ESP_OK, "read ID1 failed", err);
-    PHY_CHECK(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_IDR2_REG_ADDR, &(id2.val)) == ESP_OK, "read ID2 failed", err);
-    PHY_CHECK(id1.oui_msb == 0x243 && id2.oui_lsb == 0x3 && id2.vendor_model == 0x5, "wrong chip ID", err);
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_IDR1_REG_ADDR, &(id1.val)), err, TAG, "read ID1 failed");
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, ip101->addr, ETH_PHY_IDR2_REG_ADDR, &(id2.val)), err, TAG, "read ID2 failed");
+    ESP_GOTO_ON_FALSE(id1.oui_msb == 0x243 && id2.oui_lsb == 0x3 && id2.vendor_model == 0x5, ESP_FAIL, err, TAG, "wrong chip ID");
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 static esp_err_t ip101_deinit(esp_eth_phy_t *phy)
 {
+    esp_err_t ret = ESP_OK;
     /* Power off Ethernet PHY */
-    PHY_CHECK(ip101_pwrctl(phy, false) == ESP_OK, "power control failed", err);
+    ESP_GOTO_ON_ERROR(ip101_pwrctl(phy, false), err, TAG, "power control failed");
     return ESP_OK;
 err:
-    return ESP_FAIL;
+    return ret;
 }
 
 esp_eth_phy_t *esp_eth_phy_new_ip101(const eth_phy_config_t *config)
 {
-    PHY_CHECK(config, "can't set phy config to null", err);
+    esp_eth_phy_t *ret = NULL;
+    ESP_GOTO_ON_FALSE(config, NULL, err, TAG, "can't set phy config to null");
     phy_ip101_t *ip101 = calloc(1, sizeof(phy_ip101_t));
-    PHY_CHECK(ip101, "calloc ip101 failed", err);
+    ESP_GOTO_ON_FALSE(ip101, NULL, err, TAG, "calloc ip101 failed");
     ip101->addr = config->phy_addr;
     ip101->reset_timeout_ms = config->reset_timeout_ms;
     ip101->reset_gpio_num = config->reset_gpio_num;
@@ -371,14 +486,18 @@ esp_eth_phy_t *esp_eth_phy_new_ip101(const eth_phy_config_t *config)
     ip101->parent.init = ip101_init;
     ip101->parent.deinit = ip101_deinit;
     ip101->parent.set_mediator = ip101_set_mediator;
-    ip101->parent.negotiate = ip101_negotiate;
+    ip101->parent.autonego_ctrl = ip101_autonego_ctrl;
     ip101->parent.get_link = ip101_get_link;
     ip101->parent.pwrctl = ip101_pwrctl;
     ip101->parent.get_addr = ip101_get_addr;
     ip101->parent.set_addr = ip101_set_addr;
+    ip101->parent.advertise_pause_ability = ip101_advertise_pause_ability;
+    ip101->parent.loopback = ip101_loopback;
+    ip101->parent.set_speed = ip101_set_speed;
+    ip101->parent.set_duplex = ip101_set_duplex;
     ip101->parent.del = ip101_del;
 
     return &(ip101->parent);
 err:
-    return NULL;
+    return ret;
 }

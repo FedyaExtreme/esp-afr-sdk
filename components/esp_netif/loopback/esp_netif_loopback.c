@@ -18,6 +18,7 @@
 
 #include "esp_netif.h"
 #include "esp_netif_private.h"
+#include "esp_netif_sta_list.h"
 
 #if CONFIG_ESP_NETIF_LOOPBACK
 
@@ -432,7 +433,7 @@ const char *esp_netif_get_desc(esp_netif_t *esp_netif)
     return esp_netif->if_desc;
 }
 
-uint32_t esp_netif_get_event_id(esp_netif_t *esp_netif, esp_netif_ip_event_type_t event_type)
+int32_t esp_netif_get_event_id(esp_netif_t *esp_netif, esp_netif_ip_event_type_t event_type)
 {
     return 0;
 }
@@ -452,6 +453,26 @@ esp_err_t esp_netif_dhcpc_option(esp_netif_t *esp_netif, esp_netif_dhcp_option_m
 int esp_netif_get_netif_impl_index(esp_netif_t *esp_netif)
 {
     return 0;
+}
+
+esp_err_t esp_netif_join_ip6_multicast_group(esp_netif_t *esp_netif, const esp_ip6_addr_t *addr)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t esp_netif_leave_ip6_multicast_group(esp_netif_t *esp_netif, const esp_ip6_addr_t *addr)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t esp_netif_add_ip6_address(esp_netif_t *esp_netif, const esp_ip6_addr_t *addr, uint8_t preference)
+{
+    return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t esp_netif_remove_ip6_address(esp_netif_t *esp_netif, const esp_ip6_addr_t *addr)
+{
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 #endif /* CONFIG_ESP_NETIF_LOOPBACK */

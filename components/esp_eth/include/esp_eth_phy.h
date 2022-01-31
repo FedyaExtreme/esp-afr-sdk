@@ -1,16 +1,8 @@
-// Copyright 2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2019-2021 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 #pragma once
 
 #include <stdbool.h>
@@ -24,12 +16,6 @@ extern "C" {
 #define ESP_ETH_PHY_ADDR_AUTO (-1)
 
 /**
-* @brief Ethernet PHY
-*
-*/
-typedef struct esp_eth_phy_s esp_eth_phy_t;
-
-/**
  * @brief Auto-negotiation controll commands
  *
  */
@@ -39,6 +25,13 @@ typedef enum {
     ESP_ETH_PHY_AUTONEGO_DIS,
     ESP_ETH_PHY_AUTONEGO_G_STAT,
 } eth_phy_autoneg_cmd_t;
+
+/**
+* @brief Ethernet PHY
+*
+*/
+typedef struct esp_eth_phy_s esp_eth_phy_t;
+
 /**
 * @brief Ethernet PHY
 *
@@ -123,17 +116,6 @@ struct esp_eth_phy_s {
     */
     esp_err_t (*autonego_ctrl)(esp_eth_phy_t *phy, eth_phy_autoneg_cmd_t cmd, bool *autonego_en_stat);
 
-    /**
-    * @brief Start auto negotiation
-    *
-    * @param[in] phy: Ethernet PHY instance
-    *
-    * @return
-    *      - ESP_OK: restart auto negotiation successfully
-    *      - ESP_FAIL: restart auto negotiation failed because some error occurred
-    *
-    */
-    esp_err_t (*negotiate)(esp_eth_phy_t *phy);
     /**
     * @brief Get Ethernet PHY link status
     *
@@ -302,7 +284,7 @@ esp_eth_phy_t *esp_eth_phy_new_ip101(const eth_phy_config_t *config);
 esp_eth_phy_t *esp_eth_phy_new_rtl8201(const eth_phy_config_t *config);
 
 /**
-* @brief Create a PHY instance of LAN8720
+* @brief Create a PHY instance of LAN87xx
 *
 * @param[in] config: configuration of PHY
 *
@@ -310,7 +292,7 @@ esp_eth_phy_t *esp_eth_phy_new_rtl8201(const eth_phy_config_t *config);
 *      - instance: create PHY instance successfully
 *      - NULL: create PHY instance failed because some error occurred
 */
-esp_eth_phy_t *esp_eth_phy_new_lan8720(const eth_phy_config_t *config);
+esp_eth_phy_t *esp_eth_phy_new_lan87xx(const eth_phy_config_t *config);
 
 /**
 * @brief Create a PHY instance of DP83848
@@ -323,6 +305,23 @@ esp_eth_phy_t *esp_eth_phy_new_lan8720(const eth_phy_config_t *config);
 */
 esp_eth_phy_t *esp_eth_phy_new_dp83848(const eth_phy_config_t *config);
 
+/**
+* @brief Create a PHY instance of KSZ80xx
+*
+* The phy model from the KSZ80xx series is detected automatically. If the driver
+* is unable to detect a supported model, \c NULL is returned.
+*
+* Currently, the following models are supported:
+* KSZ8001, KSZ8021, KSZ8031, KSZ8041, KSZ8051, KSZ8061, KSZ8081, KSZ8091
+*
+* @param[in] config: configuration of PHY
+*
+* @return
+*      - instance: create PHY instance successfully
+*      - NULL: create PHY instance failed because some error occurred
+*/
+esp_eth_phy_t *esp_eth_phy_new_ksz80xx(const eth_phy_config_t *config);
+
 #if CONFIG_ETH_SPI_ETHERNET_DM9051
 /**
 * @brief Create a PHY instance of DM9051
@@ -334,6 +333,32 @@ esp_eth_phy_t *esp_eth_phy_new_dp83848(const eth_phy_config_t *config);
 *      - NULL: create PHY instance failed because some error occurred
 */
 esp_eth_phy_t *esp_eth_phy_new_dm9051(const eth_phy_config_t *config);
+#endif
+
+#if CONFIG_ETH_SPI_ETHERNET_W5500
+/**
+* @brief Create a PHY instance of W5500
+*
+* @param[in] config: configuration of PHY
+*
+* @return
+*      - instance: create PHY instance successfully
+*      - NULL: create PHY instance failed because some error occurred
+*/
+esp_eth_phy_t *esp_eth_phy_new_w5500(const eth_phy_config_t *config);
+#endif
+
+#if CONFIG_ETH_SPI_ETHERNET_KSZ8851SNL
+/**
+* @brief Create a PHY instance of KSZ8851SNL
+*
+* @param[in] config: configuration of PHY
+*
+* @return
+*      - instance: create PHY instance successfully
+*      - NULL: create PHY instance failed because some error occurred
+*/
+esp_eth_phy_t *esp_eth_phy_new_ksz8851snl(const eth_phy_config_t *config);
 #endif
 #ifdef __cplusplus
 }

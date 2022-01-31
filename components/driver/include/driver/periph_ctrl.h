@@ -1,19 +1,9 @@
-// Copyright 2015-2018 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-#ifndef _DRIVER_PERIPH_CTRL_H_
-#define _DRIVER_PERIPH_CTRL_H_
+/*
+ * SPDX-FileCopyrightText: 2015-2021 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#pragma once
 
 #include "soc/periph_defs.h"
 
@@ -22,77 +12,68 @@ extern "C" {
 #endif
 
 /**
- * @brief      enable peripheral module
+ * @brief Enable peripheral module by un-gating the clock and de-asserting the reset signal.
  *
- * @param[in]  periph    :  Peripheral module name
+ * @param[in] periph Peripheral module
  *
- * Clock for the module will be ungated, and reset de-asserted.
- *
- * @note If periph_module_enable is called a number of times,
- *       periph_module_disable has to be called the same number of times
+ * @note If @c periph_module_enable() is called a number of times,
+ *       @c periph_module_disable() has to be called the same number of times,
  *       in order to put the peripheral into disabled state.
- *
- * @return     NULL
- *
  */
 void periph_module_enable(periph_module_t periph);
 
 /**
- * @brief      disable peripheral module
+ * @brief Disable peripheral module by gating the clock and asserting the reset signal.
  *
- * @param[in]  periph    :  Peripheral module name
+ * @param[in] periph Peripheral module
  *
- * Clock for the module will be gated, reset asserted.
- *
- * @note If periph_module_enable is called a number of times,
- *       periph_module_disable has to be called the same number of times
+ * @note If @c periph_module_enable() is called a number of times,
+ *       @c periph_module_disable() has to be called the same number of times,
  *       in order to put the peripheral into disabled state.
- *
- * @return     NULL
- *
  */
 void periph_module_disable(periph_module_t periph);
 
 /**
- * @brief      reset peripheral module
+ * @brief Reset peripheral module by asserting and de-asserting the reset signal.
  *
- * @param[in]  periph    :  Peripheral module name
+ * @param[in] periph Peripheral module
  *
- * Reset will asserted then de-assrted for the peripheral.
- *
- * Calling this function does not enable or disable the clock for the module.
- *
- * @return     NULL
- *
+ * @note Calling this function does not enable or disable the clock for the module.
  */
 void periph_module_reset(periph_module_t periph);
 
 /**
- * @brief      enable wifi bt common module
+ * @brief Enable Wi-Fi and BT common module
  *
- * @note If wifi_bt_common_module_enable is called a number of times,
- *       wifi_bt_common_module_disable has to be called the same number of times
+ * @note If @c wifi_bt_common_module_enable() is called a number of times,
+ *       @c wifi_bt_common_module_disable() has to be called the same number of times,
  *       in order to put the peripheral into disabled state.
- *
- * @return     NULL 
- * 
  */
 void wifi_bt_common_module_enable(void);
 
 /**
- * @brief      disable wifi bt common module
+ * @brief Disable Wi-Fi and BT common module
  *
- * @note If wifi_bt_common_module_enable is called a number of times,
- *       wifi_bt_common_module_disable has to be called the same number of times
+ * @note If @c wifi_bt_common_module_enable() is called a number of times,
+ *       @c wifi_bt_common_module_disable() has to be called the same number of times,
  *       in order to put the peripheral into disabled state.
- *
- * @return     NULL 
- * 
  */
 void wifi_bt_common_module_disable(void);
+
+/**
+ * @brief Enable Wi-Fi module
+ *
+ * @note Calling this function will only enable Wi-Fi module.
+ */
+void wifi_module_enable(void);
+
+/**
+ * @brief Disable Wi-Fi module
+ *
+ * @note Calling this function will only disable Wi-Fi module.
+ */
+void wifi_module_disable(void);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _DRIVER_PERIPH_CTRL_H_ */

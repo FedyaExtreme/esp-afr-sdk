@@ -16,9 +16,6 @@
 #include <stdbool.h>
 #include "esp_eth_com.h"
 #include "sdkconfig.h"
-#if CONFIG_ETH_USE_SPI_ETHERNET
-#include "driver/spi_master.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -367,17 +364,21 @@ typedef union {
         emac_rmii_clock_gpio_t clock_gpio; /*!< RMII Clock GPIO Configuration */
     } rmii; /*!< EMAC RMII Clock Configuration */
 } eth_mac_clock_config_t;
+
+
 /**
 * @brief Configuration of Ethernet MAC object
 *
 */
 typedef struct {
-    uint32_t sw_reset_timeout_ms; /*!< Software reset timeout value (Unit: ms) */
-    uint32_t rx_task_stack_size;  /*!< Stack size of the receive task */
-    uint32_t rx_task_prio;        /*!< Priority of the receive task */
-    int smi_mdc_gpio_num;         /*!< SMI MDC GPIO number */
-    int smi_mdio_gpio_num;        /*!< SMI MDIO GPIO number */
-    uint32_t flags;               /*!< Flags that specify extra capability for mac driver */
+    uint32_t sw_reset_timeout_ms;        /*!< Software reset timeout value (Unit: ms) */
+    uint32_t rx_task_stack_size;         /*!< Stack size of the receive task */
+    uint32_t rx_task_prio;               /*!< Priority of the receive task */
+    int smi_mdc_gpio_num;                /*!< SMI MDC GPIO number, set to -1 could bypass the SMI GPIO configuration */
+    int smi_mdio_gpio_num;               /*!< SMI MDIO GPIO number, set to -1 could bypass the SMI GPIO configuration */
+    uint32_t flags;                      /*!< Flags that specify extra capability for mac driver */
+    eth_data_interface_t interface;      /*!< EMAC Data interface to PHY (MII/RMII) */
+    eth_mac_clock_config_t clock_config; /*!< EMAC Interface clock configuration */
 } eth_mac_config_t;
 
 #define ETH_MAC_FLAG_WORK_WITH_CACHE_DISABLE (1 << 0) /*!< MAC driver can work when cache is disabled */
@@ -387,14 +388,23 @@ typedef struct {
  * @brief Default configuration for Ethernet MAC object
  *
  */
-#define ETH_MAC_DEFAULT_CONFIG()    \
-    {                               \
-        .sw_reset_timeout_ms = 100, \
-        .rx_task_stack_size = 4096, \
-        .rx_task_prio = 15,         \
-        .smi_mdc_gpio_num = 23,     \
-        .smi_mdio_gpio_num = 18,    \
-        .flags = 0,                 \
+#define ETH_MAC_DEFAULT_CONFIG()                          \
+    {                                                     \
+        .sw_reset_timeout_ms = 100,                       \
+        .rx_task_stack_size = 2048,                       \
+        .rx_task_prio = 15,                               \
+        .smi_mdc_gpio_num = 23,                           \
+        .smi_mdio_gpio_num = 18,                          \
+        .flags = 0,                                       \
+        .interface = EMAC_DATA_INTERFACE_RMII,            \
+        .clock_config =                                   \
+        {                                                 \
+            .rmii =                                       \
+            {                                             \
+                .clock_mode = EMAC_CLK_DEFAULT,           \
+                .clock_gpio = EMAC_CLK_IN_GPIO            \
+            }                                             \
+        }                                                 \
     }
 
 #if CONFIG_ETH_USE_ESP32_EMAC
@@ -416,8 +426,8 @@ esp_eth_mac_t *esp_eth_mac_new_esp32(const eth_mac_config_t *config);
  *
  */
 typedef struct {
-    spi_device_handle_t spi_hdl; /*!< Handle of SPI device driver */
-    int int_gpio_num;            /*!< Interrupt GPIO number */
+    void *spi_hdl;     /*!< Handle of SPI device driver */
+    int int_gpio_num;  /*!< Interrupt GPIO number */
 } eth_dm9051_config_t;
 
 /**
@@ -442,6 +452,72 @@ typedef struct {
 */
 esp_eth_mac_t *esp_eth_mac_new_dm9051(const eth_dm9051_config_t *dm9051_config, const eth_mac_config_t *mac_config);
 #endif // CONFIG_ETH_SPI_ETHERNET_DM9051
+
+#if CONFIG_ETH_SPI_ETHERNET_W5500
+/**
+ * @brief W5500 specific configuration
+ *
+ */
+typedef struct {
+    void *spi_hdl;     /*!< Handle of SPI device driver */
+    int int_gpio_num;  /*!< Interrupt GPIO number */
+} eth_w5500_config_t;
+
+/**
+ * @brief Default W5500 specific configuration
+ *
+ */
+#define ETH_W5500_DEFAULT_CONFIG(spi_device) \
+    {                                        \
+        .spi_hdl = spi_device,               \
+        .int_gpio_num = 4,                   \
+    }
+
+/**
+* @brief Create W5500 Ethernet MAC instance
+*
+* @param w5500_config: W5500 specific configuration
+* @param mac_config: Ethernet MAC configuration
+*
+* @return
+*      - instance: create MAC instance successfully
+*      - NULL: create MAC instance failed because some error occurred
+*/
+esp_eth_mac_t *esp_eth_mac_new_w5500(const eth_w5500_config_t *w5500_config, const eth_mac_config_t *mac_config);
+#endif // CONFIG_ETH_SPI_ETHERNET_W5500
+
+#if CONFIG_ETH_SPI_ETHERNET_KSZ8851SNL
+/**
+ * @brief KSZ8851SNL specific configuration
+ *
+ */
+typedef struct {
+    void *spi_hdl;     /*!< Handle of SPI device driver */
+    int int_gpio_num;  /*!< Interrupt GPIO number */
+} eth_ksz8851snl_config_t;
+
+/**
+ * @brief Default KSZ8851SNL specific configuration
+ *
+ */
+#define ETH_KSZ8851SNL_DEFAULT_CONFIG(spi_device) \
+    {                                        \
+        .spi_hdl = spi_device,               \
+        .int_gpio_num = 14,                   \
+    }
+
+/**
+* @brief Create KSZ8851SNL Ethernet MAC instance
+*
+* @param ksz8851snl_config: KSZ8851SNL specific configuration
+* @param mac_config: Ethernet MAC configuration
+*
+* @return
+*      - instance: create MAC instance successfully
+*      - NULL: create MAC instance failed because some error occurred
+*/
+esp_eth_mac_t *esp_eth_mac_new_ksz8851snl(const eth_ksz8851snl_config_t *ksz8851snl_config, const eth_mac_config_t *mac_config);
+#endif // CONFIG_ETH_SPI_ETHERNET_KSZ8851
 
 #if CONFIG_ETH_USE_OPENETH
 /**

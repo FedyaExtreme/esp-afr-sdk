@@ -1,16 +1,8 @@
-// Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2015-2021 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef _ESP_NETIF_DEFAULTS_H
 #define _ESP_NETIF_DEFAULTS_H
@@ -37,6 +29,7 @@ extern "C" {
         .route_prio = 100 \
      }  \
 
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 #define ESP_NETIF_INHERENT_DEFAULT_WIFI_AP() \
     {   \
         .flags = (esp_netif_flags_t)(ESP_NETIF_DHCP_SERVER | ESP_NETIF_FLAG_AUTOUP), \
@@ -48,6 +41,7 @@ extern "C" {
         .if_desc = "ap", \
         .route_prio = 10 \
     };
+// #endif
 
 #define ESP_NETIF_INHERENT_DEFAULT_ETH() \
     {   \
@@ -55,7 +49,7 @@ extern "C" {
         ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(mac) \
         ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(ip_info) \
         .get_ip_event = IP_EVENT_ETH_GOT_IP, \
-        .lost_ip_event = 0, \
+        .lost_ip_event = IP_EVENT_ETH_LOST_IP, \
         .if_key = "ETH_DEF", \
         .if_desc = "eth", \
         .route_prio = 50 \
@@ -70,8 +64,33 @@ extern "C" {
         .lost_ip_event = IP_EVENT_PPP_LOST_IP,  \
         .if_key = "PPP_DEF",    \
         .if_desc = "ppp",   \
-        .route_prio = 128   \
+        .route_prio = 20   \
 };
+
+#define ESP_NETIF_INHERENT_DEFAULT_OPENTHREAD() \
+    {   \
+        .flags = 0, \
+        ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(mac) \
+        ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(ip_info) \
+        .get_ip_event = 0,    \
+        .lost_ip_event = 0,   \
+        .if_key = "OT_DEF",  \
+        .if_desc = "openthread",    \
+        .route_prio = 15      \
+};
+
+#define ESP_NETIF_INHERENT_DEFAULT_SLIP() \
+    {   \
+        .flags = ESP_NETIF_FLAG_IS_SLIP, \
+        ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(mac) \
+        ESP_COMPILER_DESIGNATED_INIT_AGGREGATE_TYPE_EMPTY(ip_info) \
+        .get_ip_event = 0,    \
+        .lost_ip_event = 0,   \
+        .if_key = "SLP_DEF",  \
+        .if_desc = "slip",    \
+        .route_prio = 16      \
+};
+
 
 /**
  * @brief  Default configuration reference of ethernet interface
@@ -83,6 +102,7 @@ extern "C" {
         .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH, \
     }
 
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 /**
  * @brief  Default configuration reference of WIFI AP
  */
@@ -92,6 +112,7 @@ extern "C" {
         .driver = NULL,                              \
         .stack = ESP_NETIF_NETSTACK_DEFAULT_WIFI_AP, \
     }
+// #endif
 
 /**
 * @brief  Default configuration reference of WIFI STA
@@ -112,15 +133,29 @@ extern "C" {
         .driver = NULL,                               \
         .stack = ESP_NETIF_NETSTACK_DEFAULT_PPP,      \
     }
+
+/**
+* @brief  Default configuration reference of SLIP client
+*/
+#define ESP_NETIF_DEFAULT_SLIP()                       \
+    {                                                  \
+        .base = ESP_NETIF_BASE_DEFAULT_SLIP,           \
+        .driver = NULL,                                \
+        .stack = ESP_NETIF_NETSTACK_DEFAULT_SLIP,      \
+    }
+
+
 /**
  * @brief  Default base config (esp-netif inherent) of WIFI STA
  */
 #define ESP_NETIF_BASE_DEFAULT_WIFI_STA        &_g_esp_netif_inherent_sta_config
 
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 /**
  * @brief  Default base config (esp-netif inherent) of WIFI AP
  */
 #define ESP_NETIF_BASE_DEFAULT_WIFI_AP         &_g_esp_netif_inherent_ap_config
+// #endif
 
 /**
  * @brief  Default base config (esp-netif inherent) of ethernet interface
@@ -132,11 +167,20 @@ extern "C" {
  */
 #define ESP_NETIF_BASE_DEFAULT_PPP             &_g_esp_netif_inherent_ppp_config
 
+/**
+ * @brief  Default base config (esp-netif inherent) of slip interface
+ */
+#define ESP_NETIF_BASE_DEFAULT_SLIP             &_g_esp_netif_inherent_slip_config
+
 
 #define ESP_NETIF_NETSTACK_DEFAULT_ETH          _g_esp_netif_netstack_default_eth
 #define ESP_NETIF_NETSTACK_DEFAULT_WIFI_STA     _g_esp_netif_netstack_default_wifi_sta
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 #define ESP_NETIF_NETSTACK_DEFAULT_WIFI_AP      _g_esp_netif_netstack_default_wifi_ap
+// #endif
 #define ESP_NETIF_NETSTACK_DEFAULT_PPP          _g_esp_netif_netstack_default_ppp
+#define ESP_NETIF_NETSTACK_DEFAULT_SLIP         _g_esp_netif_netstack_default_slip
+#define ESP_NETIF_NETSTACK_DEFAULT_OPENTHREAD   _g_esp_netif_netstack_default_openthread
 
 //
 // Include default network stacks configs
@@ -146,8 +190,11 @@ extern "C" {
 //
 extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_eth;
 extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_wifi_sta;
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_wifi_ap;
+// #endif
 extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_ppp;
+extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_slip;
 
 //
 // Include default common configs inherent to esp-netif
@@ -155,11 +202,37 @@ extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_ppp;
 //    common behavioural patterns for common interfaces such as STA, AP, ETH, PPP
 //
 extern const esp_netif_inherent_config_t _g_esp_netif_inherent_sta_config;
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 extern const esp_netif_inherent_config_t _g_esp_netif_inherent_ap_config;
+// #endif
 extern const esp_netif_inherent_config_t _g_esp_netif_inherent_eth_config;
 extern const esp_netif_inherent_config_t _g_esp_netif_inherent_ppp_config;
+extern const esp_netif_inherent_config_t _g_esp_netif_inherent_slip_config;
 
+// #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
 extern const esp_netif_ip_info_t _g_esp_netif_soft_ap_ip;
+// #endif
+
+#if CONFIG_OPENTHREAD_ENABLED
+/**
+* @brief  Default configuration reference of SLIP client
+*/
+#define ESP_NETIF_DEFAULT_OPENTHREAD()                  \
+    {                                                   \
+        .base = ESP_NETIF_BASE_DEFAULT_OPENTHREAD,      \
+        .driver = NULL,                                 \
+        .stack = ESP_NETIF_NETSTACK_DEFAULT_OPENTHREAD, \
+    }
+
+/**
+ * @brief  Default base config (esp-netif inherent) of openthread interface
+ */
+#define ESP_NETIF_BASE_DEFAULT_OPENTHREAD       &_g_esp_netif_inherent_openthread_config
+
+extern const esp_netif_netstack_config_t *_g_esp_netif_netstack_default_openthread;
+extern const esp_netif_inherent_config_t _g_esp_netif_inherent_openthread_config;
+
+#endif // CONFIG_OPENTHREAD_ENABLED
 
 #ifdef __cplusplus
 }

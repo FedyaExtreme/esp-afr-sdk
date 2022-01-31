@@ -20,10 +20,7 @@ if(CONFIG_ETH_ENABLED)
 
     if(CONFIG_ETH_USE_ESP32_EMAC)
         list(APPEND srcs "src/esp_eth_mac_esp32.c"
-                         "src/esp_eth_phy_dp83848.c"
-                         "src/esp_eth_phy_ip101.c"
-                         "src/esp_eth_phy_lan8720.c"
-                         "src/esp_eth_phy_rtl8201.c")
+                         "src/esp_eth_phy_ksz80xx.c")
     endif()
 
     if(CONFIG_ETH_SPI_ETHERNET_DM9051)

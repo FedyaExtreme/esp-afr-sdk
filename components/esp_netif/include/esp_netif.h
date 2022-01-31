@@ -1,16 +1,8 @@
-// Copyright 2019 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * SPDX-FileCopyrightText: 2019-2021 Espressif Systems (Shanghai) CO LTD
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef _ESP_NETIF_H_
 #define _ESP_NETIF_H_
@@ -165,6 +157,88 @@ esp_err_t esp_netif_receive(esp_netif_t *esp_netif, void *buffer, size_t len, vo
  */
 
 /**
+ * @defgroup ESP_NETIF_L2_TAP_CTRL ESP-NETIF L2 TAP Control API
+ * @brief Functions to control access to ESP-NETIF Data link layer
+ */
+
+/** @addtogroup ESP_NETIF_L2_TAP_CTRL
+ * @{
+ */
+
+/**
+ * @brief Add transmit hook callback function reference into ESP-NETIF. This callback function
+ *        is then called just prior the ESP-NETIF passes data to network driver.
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @param[in] hook_fn reference to transmit hook call-back function
+ * @return
+ *         - ESP_OK - success
+ *         - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_netif_transmit_hook_attach(esp_netif_t *esp_netif, void *hook_fn);
+
+/**
+ * @brief Add post transmit hook callback function reference into ESP-NETIF. This callback function
+ *        is then called just after the ESP-NETIF passes data to network driver.
+ *
+ * @note Intention of this function is either to release resources allocated by transmit hook function
+ *       or for other use cases such as time stamping, etc.
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @param[in] hook_fn reference to post transmit hook call-back function
+ * @return
+ *         - ESP_OK - success
+ *         - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_netif_post_transmit_hook_attach(esp_netif_t *esp_netif, void *hook_fn);
+
+/**
+ * @brief Add receive hook callback function reference into ESP-NETIF. This callback function
+ *        is then called when network driver receives data.
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @param[in] hook_fn reference to receive hook callback function
+ * @return
+ *         - ESP_OK - success
+ *         - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_netif_recv_hook_attach(esp_netif_t *esp_netif, void *hook_fn);
+
+/**
+ * @brief Removes reference to previously attachhed transmit hook callback function
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @return
+ *         - ESP_OK - success
+ *         - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_netif_transmit_hook_detach(esp_netif_t *esp_netif);
+
+/**
+ * @brief Removes reference to previously attachhed posttransmit hook callback function
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @return
+ *         - ESP_OK - success
+ *         - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_netif_post_transmit_hook_detach(esp_netif_t *esp_netif);
+
+/**
+ * @brief Removes reference to previously attachhed receive hook callback function
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @return
+ *         - ESP_OK - success
+ *         - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_netif_recv_hook_detach(esp_netif_t *esp_netif);
+
+/**
+ * @}
+ */
+
+/**
  * @defgroup ESP_NETIF_LIFECYCLE ESP-NETIF Lifecycle control
  * @brief These APIS define basic building blocks to control network interface lifecycle, i.e.
  * start, stop, set_up or set_down. These functions can be directly used as event handlers
@@ -236,6 +310,54 @@ void esp_netif_action_disconnected(void *esp_netif, esp_event_base_t base, int32
  * @param data
  */
 void esp_netif_action_got_ip(void *esp_netif, esp_event_base_t base, int32_t event_id, void *data);
+
+/**
+ * @brief Default building block for network interface action upon IPv6 multicast group join
+ *
+ * @note This API can be directly used as event handler
+ *
+ * @param[in]  esp_netif Handle to esp-netif instance
+ * @param base
+ * @param event_id
+ * @param data
+ */
+void esp_netif_action_join_ip6_multicast_group(void *esp_netif, esp_event_base_t base, int32_t event_id, void *data);
+
+/**
+ * @brief Default building block for network interface action upon IPv6 multicast group leave
+ *
+ * @note This API can be directly used as event handler
+ *
+ * @param[in]  esp_netif Handle to esp-netif instance
+ * @param base
+ * @param event_id
+ * @param data
+ */
+void esp_netif_action_leave_ip6_multicast_group(void *esp_netif, esp_event_base_t base, int32_t event_id, void *data);
+
+/**
+ * @brief Default building block for network interface action upon IPv6 address added by the underlying stack
+ *
+ * @note This API can be directly used as event handler
+ *
+ * @param[in]  esp_netif Handle to esp-netif instance
+ * @param base
+ * @param event_id
+ * @param data
+ */
+void esp_netif_action_add_ip6_address(void *esp_netif, esp_event_base_t base, int32_t event_id, void *data);
+
+/**
+ * @brief Default building block for network interface action upon IPv6 address removed by the underlying stack
+ *
+ * @note This API can be directly used as event handler
+ *
+ * @param[in]  esp_netif Handle to esp-netif instance
+ * @param base
+ * @param event_id
+ * @param data
+ */
+void esp_netif_action_remove_ip6_address(void *esp_netif, esp_event_base_t base, int32_t event_id, void *data);
 
 /**
  * @}
@@ -564,12 +686,12 @@ esp_err_t esp_netif_dhcps_stop(esp_netif_t *esp_netif);
  *
  * This function behaves differently if DHCP server or client is enabled
  *
- *   If DHCP client is enabled, main and backup DNS servers will be updated automatically 
- *   from the DHCP lease if the relevant DHCP options are set. Fallback DNS Server is never updated from the DHCP lease 
+ *   If DHCP client is enabled, main and backup DNS servers will be updated automatically
+ *   from the DHCP lease if the relevant DHCP options are set. Fallback DNS Server is never updated from the DHCP lease
  *   and is designed to be set via this API.
  *   If DHCP client is disabled, all DNS server types can be set via this API only.
- *   
- *   If DHCP server is enabled, the Main DNS Server setting is used by the DHCP server to provide a DNS Server option 
+ *
+ *   If DHCP server is enabled, the Main DNS Server setting is used by the DHCP server to provide a DNS Server option
  *   to DHCP clients (Wi-Fi stations).
  *   - The default Main DNS server is typically the IP of the Wi-Fi AP interface itself.
  *   - This function can override it by setting server type ESP_NETIF_DNS_MAIN.
@@ -615,7 +737,7 @@ esp_err_t esp_netif_get_dns_info(esp_netif_t *esp_netif, esp_netif_dns_type_t ty
 /** @addtogroup ESP_NETIF_NET_IP
  * @{
  */
-
+// #if CONFIG_LWIP_IPV6
 /**
  * @brief  Create interface link-local IPv6 address
  *
@@ -674,6 +796,7 @@ esp_err_t esp_netif_get_ip6_global(esp_netif_t *esp_netif, esp_ip6_addr_t *if_ip
  *      number of returned IPv6 addresses
  */
 int esp_netif_get_all_ip6(esp_netif_t *esp_netif, esp_ip6_addr_t if_ip6[]);
+// #endif
 
 /**
  * @brief Sets IPv4 address to the specified octets
@@ -708,6 +831,31 @@ char *esp_ip4addr_ntoa(const esp_ip4_addr_t *addr, char *buf, int buflen);
 uint32_t esp_ip4addr_aton(const char *addr);
 
 /**
+ * @brief Converts Ascii internet IPv4 address into esp_ip4_addr_t
+ *
+ * @param[in] src IPv4 address in ascii representation (e.g. "127.0.0.1")
+ * @param[out] dst Address of the target esp_ip4_addr_t structure to receive converted address
+ * @return
+ *         - ESP_OK on success
+ *         - ESP_FAIL if conversion failed
+ *         - ESP_ERR_INVALID_ARG if invalid parameter is passed into
+ */
+esp_err_t esp_netif_str_to_ip4(const char *src, esp_ip4_addr_t *dst);
+
+/**
+ * @brief Converts Ascii internet IPv6 address into esp_ip4_addr_t
+ * Zeros in the IP address can be stripped or completely ommited: "2001:db8:85a3:0:0:0:2:1" or "2001:db8::2:1")
+ *
+ * @param[in] src IPv6 address in ascii representation (e.g. ""2001:0db8:85a3:0000:0000:0000:0002:0001")
+ * @param[out] dst Address of the target esp_ip6_addr_t structure to receive converted address
+ * @return
+ *         - ESP_OK on success
+ *         - ESP_FAIL if conversion failed
+ *         - ESP_ERR_INVALID_ARG if invalid parameter is passed into
+ */
+esp_err_t esp_netif_str_to_ip6(const char *src, esp_ip6_addr_t *dst);
+
+/**
  * @}
  */
 
@@ -722,36 +870,36 @@ uint32_t esp_ip4addr_aton(const char *addr);
 
 /**
  * @brief Gets media driver handle for this esp-netif instance
- * 
+ *
  * @param[in]  esp_netif Handle to esp-netif instance
- * 
+ *
  * @return opaque pointer of related IO driver
  */
 esp_netif_iodriver_handle esp_netif_get_io_driver(esp_netif_t *esp_netif);
 
 /**
  * @brief Searches over a list of created objects to find an instance with supplied if key
- * 
+ *
  * @param if_key Textual description of network interface
- * 
+ *
  * @return Handle to esp-netif instance
  */
 esp_netif_t *esp_netif_get_handle_from_ifkey(const char *if_key);
 
 /**
  * @brief Returns configured flags for this interface
- * 
+ *
  * @param[in]  esp_netif Handle to esp-netif instance
- * 
- * @return Configuration flags 
+ *
+ * @return Configuration flags
  */
 esp_netif_flags_t esp_netif_get_flags(esp_netif_t *esp_netif);
 
 /**
  * @brief Returns configured interface key for this esp-netif instance
- * 
+ *
  * @param[in]  esp_netif Handle to esp-netif instance
- * 
+ *
  * @return Textual description of related interface
  */
 const char *esp_netif_get_ifkey(esp_netif_t *esp_netif);
@@ -780,7 +928,7 @@ int esp_netif_get_route_prio(esp_netif_t *esp_netif);
  * @param[in]  esp_netif Handle to esp-netif instance
  *
  * @param event_type (either get or lost IP)
- * 
+ *
  * @return specific event id which is configured to be raised if the interface lost or acquired IP address
  *         -1 if supplied event_type is not known
  */
