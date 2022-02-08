@@ -196,6 +196,7 @@ typedef struct {
         .reset_gpio_num = 5,               \
     }
 
+esp_eth_phy_t *esp_eth_phy_new_ksz80xx(const eth_phy_config_t *config);
 /**
 * @brief Create a PHY instance of IP101
 *
