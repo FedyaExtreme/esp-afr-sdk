@@ -183,7 +183,7 @@ esp_err_t esp_eth_driver_install(const esp_eth_config_t *config, esp_eth_handle_
     eth_driver->phy = phy;
     eth_driver->link = ETH_LINK_DOWN;
     eth_driver->duplex = ETH_DUPLEX_HALF;
-    eth_driver->speed = ETH_SPEED_10M;
+    eth_driver->speed = ETH_SPEED_100M;
     eth_driver->stack_input = config->stack_input;
     eth_driver->on_lowlevel_init_done = config->on_lowlevel_init_done;
     eth_driver->on_lowlevel_deinit_done = config->on_lowlevel_deinit_done;
@@ -191,6 +191,7 @@ esp_err_t esp_eth_driver_install(const esp_eth_config_t *config, esp_eth_handle_
     eth_driver->mediator.phy_reg_write = eth_phy_reg_write;
     eth_driver->mediator.stack_input = eth_stack_input;
     eth_driver->mediator.on_state_changed = eth_on_state_changed;
+    ESP_LOGI(TAG, "ethernet speed: %s", (eth_driver->speed == ETH_SPEED_10M)?"10M":"100M");
     /* some PHY can't output RMII clock if in reset state, so hardware reset PHY chip firstly */
     phy->reset_hw(phy);
     ETH_CHECK(mac->set_mediator(mac, &eth_driver->mediator) == ESP_OK, "set mediator for mac failed", err_mediator, ESP_FAIL);

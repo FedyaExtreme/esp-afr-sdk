@@ -51,6 +51,7 @@
 #include "lwip/sys.h"
 #include "lwip/timeouts.h"
 #include "lwip/inet_chksum.h"
+#include "esp_log.h"
 
 #if PING_USE_SOCKETS
 #include "lwip/sockets.h"
@@ -66,7 +67,7 @@
  * PING_DEBUG: Enable debugging for PING.
  */
 #ifndef PING_DEBUG
-#define PING_DEBUG     LWIP_DBG_OFF
+#define PING_DEBUG     LWIP_DBG_ON
 #endif
 
 /** ping target - should be an "ip4_addr_t" */
@@ -238,26 +239,41 @@ ping_send_now(void)
 static void
 on_ping_success(esp_ping_handle_t hdl, void *args)
 {
+  uint8_t ttl;
+  uint16_t seqno;
   uint32_t elapsed_time, recv_len;
+  ip_addr_t target_addr;
+  esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
+  esp_ping_get_profile(hdl, ESP_PING_PROF_TTL, &ttl, sizeof(ttl));
+  esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
   esp_ping_get_profile(hdl, ESP_PING_PROF_SIZE, &recv_len, sizeof(recv_len));
   esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
-  esp_ping_result(PING_RES_OK, recv_len, elapsed_time);
+  ESP_LOGI("ping","%d bytes from %s icmp_seq=%d ttl=%d time=%d ms\n",
+           recv_len, ipaddr_ntoa((ip_addr_t*)&target_addr), seqno, ttl, elapsed_time);
 }
 
 static void
 on_ping_timeout(esp_ping_handle_t hdl, void *args)
 {
-  uint32_t elapsed_time, recv_len;
-  esp_ping_get_profile(hdl, ESP_PING_PROF_SIZE, &recv_len, sizeof(recv_len));
-  esp_ping_get_profile(hdl, ESP_PING_PROF_TIMEGAP, &elapsed_time, sizeof(elapsed_time));
-  esp_ping_result(PING_RES_TIMEOUT, recv_len, elapsed_time);
+    uint16_t seqno;
+    ip_addr_t target_addr;
+    esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
+    esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
+    ESP_LOGI("ping","From %s icmp_seq=%d timeout\n",ipaddr_ntoa((ip_addr_t*)&target_addr), seqno);
 }
 
 static void
 on_ping_end(esp_ping_handle_t hdl, void *args)
 {
+  uint16_t seqno;
+  ip_addr_t target_addr;
+
   esp_ping_result(PING_RES_FINISH, 0, 0);
   esp_ping_delete_session(hdl);
+
+  esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
+  esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
+  ESP_LOGI("ping", "From %s icmp_seq=%d timeout\n",ipaddr_ntoa((ip_addr_t*)&target_addr), seqno);
 }
 
 int
