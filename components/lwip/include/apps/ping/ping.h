@@ -35,6 +35,7 @@
 extern "C" {
 #endif
 
+// #define ESP_PING
 /**
  * PING_USE_SOCKETS: Set to 1 to use sockets, otherwise the raw api is used
  */
