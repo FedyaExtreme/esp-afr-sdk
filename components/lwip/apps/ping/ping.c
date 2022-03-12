@@ -56,6 +56,7 @@
 #if PING_USE_SOCKETS
 #include "lwip/sockets.h"
 #include "lwip/inet.h"
+#include "lwip/netdb.h"
 #include "ping/ping_sock.h"
 #endif /* PING_USE_SOCKETS */
 
@@ -277,7 +278,7 @@ on_ping_end(esp_ping_handle_t hdl, void *args)
 }
 
 int
-ping_init(void)
+ping_init(const char* host)
 {
 #if PING_USE_SOCKETS
   uint32_t tos = 0;
@@ -287,31 +288,29 @@ ping_init(void)
   uint32_t interface = 0;
   
   // /* convert URL to IP address */
-  // ip_addr_t target_addr;
-  // struct addrinfo hint;
-  // struct addrinfo *res = NULL;
-  // memset(&hint, 0, sizeof(hint));
-  // memset(&target_addr, 0, sizeof(target_addr));
-  // getaddrinfo("www.google.com", NULL, &hint, &res);
-  // struct in_addr addr4 = ((struct sockaddr_in *) (res->ai_addr))->sin_addr;
-  // inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
-  // freeaddrinfo(res);
-  ip_addr_t ipaddr;
-  IP_ADDR4(&ipaddr, 8, 8, 8, 8);
+  ip_addr_t target_addr;
+  struct addrinfo hint;
+  struct addrinfo *res = NULL;
+  memset(&hint, 0, sizeof(hint));
+  memset(&target_addr, 0, sizeof(target_addr));
+  getaddrinfo(host, NULL, &hint, &res);
+  struct in_addr addr4 = ((struct sockaddr_in *) (res->ai_addr))->sin_addr;
+  inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
+  freeaddrinfo(res);
 
+  //esp_ping_get_target(PING_TARGET_IP_ADDRESS, &ipaddr, sizeof(ip_addr_t));
   //esp_ping_set_target(PING_TARGET_IP_ADDRESS, &ipaddr, sizeof(ip_addr_t));
   // esp_ping_get_target(PING_TARGET_IP_ADDRESS_COUNT, &ping_count_max, sizeof(ping_count_max));
+  // esp_ping_get_target(PING_TARGET_IF_INDEX, &interface, sizeof(interface));
   esp_ping_get_target(PING_TARGET_RCV_TIMEO, &ping_timeout, sizeof(ping_timeout));
   esp_ping_get_target(PING_TARGET_DELAY_TIME, &ping_delay, sizeof(ping_delay));
-  //esp_ping_get_target(PING_TARGET_IP_ADDRESS, &ipaddr, sizeof(ip_addr_t));
   esp_ping_get_target(PING_TARGET_IP_TOS, &tos, sizeof(tos));
-  // esp_ping_get_target(PING_TARGET_IF_INDEX, &interface, sizeof(interface));
 
   esp_ping_config_t config = ESP_PING_DEFAULT_CONFIG();
   config.count = ping_count_max;
-  //config.timeout_ms = ping_timeout;
+  config.timeout_ms = ping_timeout;
+  config.target_addr = target_addr;
   //config.interval_ms = ping_delay;
-  config.target_addr = ipaddr;
   //config.tos = tos;
   // config.interface = interface;
 

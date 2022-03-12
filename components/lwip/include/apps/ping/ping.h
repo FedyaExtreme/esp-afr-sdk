@@ -44,7 +44,7 @@ extern "C" {
 #endif
 
 
-int ping_init(void) __attribute__ ((deprecated));
+int ping_init(const char* host) __attribute__ ((deprecated));
 
 #ifdef ESP_PING
 void ping_deinit(void) __attribute__ ((deprecated));
