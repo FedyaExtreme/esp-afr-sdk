@@ -43,7 +43,16 @@ typedef struct {
     *
     */
     esp_eth_phy_t *phy;
-
+    /**
+    * @brief Ethernet speed
+    *
+    */
+    eth_speed_t speed;
+    /**
+    * @brief Ethernet duplex
+    *
+    */
+    eth_duplex_t duplex;
     /**
     * @brief Period time of checking Ethernet link status
     *

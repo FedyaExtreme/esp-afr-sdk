@@ -182,8 +182,8 @@ esp_err_t esp_eth_driver_install(const esp_eth_config_t *config, esp_eth_handle_
     eth_driver->mac = mac;
     eth_driver->phy = phy;
     eth_driver->link = ETH_LINK_DOWN;
-    eth_driver->duplex = ETH_DUPLEX_HALF;
-    eth_driver->speed = ETH_SPEED_100M;
+    eth_driver->duplex = config->duplex;
+    eth_driver->speed = config->speed;
     eth_driver->stack_input = config->stack_input;
     eth_driver->on_lowlevel_init_done = config->on_lowlevel_init_done;
     eth_driver->on_lowlevel_deinit_done = config->on_lowlevel_deinit_done;
