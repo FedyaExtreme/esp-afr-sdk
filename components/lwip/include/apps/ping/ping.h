@@ -35,6 +35,7 @@
 extern "C" {
 #endif
 
+// #define ESP_PING
 /**
  * PING_USE_SOCKETS: Set to 1 to use sockets, otherwise the raw api is used
  */
@@ -43,7 +44,7 @@ extern "C" {
 #endif
 
 
-int ping_init(void) __attribute__ ((deprecated));
+int ping_init(const char* host) __attribute__ ((deprecated));
 
 #ifdef ESP_PING
 void ping_deinit(void) __attribute__ ((deprecated));

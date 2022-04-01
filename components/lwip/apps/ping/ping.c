@@ -56,6 +56,7 @@
 #if PING_USE_SOCKETS
 #include "lwip/sockets.h"
 #include "lwip/inet.h"
+#include "lwip/netdb.h"
 #include "ping/ping_sock.h"
 #endif /* PING_USE_SOCKETS */
 
@@ -268,16 +269,16 @@ on_ping_end(esp_ping_handle_t hdl, void *args)
   uint16_t seqno;
   ip_addr_t target_addr;
 
-  esp_ping_result(PING_RES_FINISH, 0, 0);
-  esp_ping_delete_session(hdl);
-
   esp_ping_get_profile(hdl, ESP_PING_PROF_SEQNO, &seqno, sizeof(seqno));
   esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
   ESP_LOGI("ping", "From %s icmp_seq=%d timeout\n",ipaddr_ntoa((ip_addr_t*)&target_addr), seqno);
+    
+  esp_ping_result(PING_RES_FINISH, 0, 0);
+  esp_ping_delete_session(hdl);
 }
 
 int
-ping_init(void)
+ping_init(const char* host)
 {
 #if PING_USE_SOCKETS
   uint32_t tos = 0;
@@ -285,22 +286,33 @@ ping_init(void)
   uint32_t ping_delay = PING_DELAY;
   uint32_t ping_count_max = 3;
   uint32_t interface = 0;
-  ip_addr_t ipaddr;
+  
+  // /* convert URL to IP address */
+  ip_addr_t target_addr;
+  struct addrinfo hint;
+  struct addrinfo *res = NULL;
+  memset(&hint, 0, sizeof(hint));
+  memset(&target_addr, 0, sizeof(target_addr));
+  getaddrinfo(host, NULL, &hint, &res);
+  struct in_addr addr4 = ((struct sockaddr_in *) (res->ai_addr))->sin_addr;
+  inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
+  freeaddrinfo(res);
 
-  esp_ping_get_target(PING_TARGET_IP_ADDRESS_COUNT, &ping_count_max, sizeof(ping_count_max));
+  //esp_ping_get_target(PING_TARGET_IP_ADDRESS, &ipaddr, sizeof(ip_addr_t));
+  //esp_ping_set_target(PING_TARGET_IP_ADDRESS, &ipaddr, sizeof(ip_addr_t));
+  // esp_ping_get_target(PING_TARGET_IP_ADDRESS_COUNT, &ping_count_max, sizeof(ping_count_max));
+  // esp_ping_get_target(PING_TARGET_IF_INDEX, &interface, sizeof(interface));
   esp_ping_get_target(PING_TARGET_RCV_TIMEO, &ping_timeout, sizeof(ping_timeout));
   esp_ping_get_target(PING_TARGET_DELAY_TIME, &ping_delay, sizeof(ping_delay));
-  esp_ping_get_target(PING_TARGET_IP_ADDRESS, &ipaddr, sizeof(ip_addr_t));
   esp_ping_get_target(PING_TARGET_IP_TOS, &tos, sizeof(tos));
-  esp_ping_get_target(PING_TARGET_IF_INDEX, &interface, sizeof(interface));
 
   esp_ping_config_t config = ESP_PING_DEFAULT_CONFIG();
   config.count = ping_count_max;
   config.timeout_ms = ping_timeout;
-  config.interval_ms = ping_delay;
-  config.target_addr = ipaddr;
-  config.tos = tos;
-  config.interface = interface;
+  config.target_addr = target_addr;
+  //config.interval_ms = ping_delay;
+  //config.tos = tos;
+  // config.interface = interface;
 
   esp_ping_callbacks_t cbs = {
     .on_ping_end = on_ping_end,
