@@ -293,7 +293,12 @@ ping_init(const char* host)
   struct addrinfo *res = NULL;
   memset(&hint, 0, sizeof(hint));
   memset(&target_addr, 0, sizeof(target_addr));
-  getaddrinfo(host, NULL, &hint, &res);
+  int err = getaddrinfo(host, NULL, &hint, &res);
+  if (err != 0)
+  {
+    return ESP_FAIL;
+  }
+  
   struct in_addr addr4 = ((struct sockaddr_in *) (res->ai_addr))->sin_addr;
   inet_addr_to_ip4addr(ip_2_ip4(&target_addr), &addr4);
   freeaddrinfo(res);
