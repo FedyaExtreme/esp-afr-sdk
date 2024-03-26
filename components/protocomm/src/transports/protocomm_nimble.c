@@ -31,7 +31,7 @@
 #include "services/gap/ble_svc_gap.h"
 
 static const char *TAG = "protocomm_nimble";
-
+int ble_disconnected = 0;
 int ble_uuid_flat(const ble_uuid_t *, void *);
 static uint8_t ble_uuid_base[BLE_UUID128_VAL_LENGTH];
 static int num_chr_dsc;
@@ -381,6 +381,7 @@ gatt_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle,
             return rc;
         } else {
             ESP_LOGE(TAG, "Invalid content received, killing connection");
+            ble_disconnected = 1;
             return BLE_ATT_ERR_INVALID_PDU;
         }
 
